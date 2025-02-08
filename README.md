@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # **Crypto-Wallet** 🚀  
 *A Secure GUI-Based Cryptocurrency Wallet built with C++ and RAD Studio*  
 
@@ -177,4 +176,3 @@ This project is a **GUI-based Cryptocurrency Wallet** developed using **RAD Stud
 ## Contributions
 Contributions are welcome! Feel free to fork the repository and submit pull requests.
 
->>>>>>> bb9a0a5 (Initial commit - Added Crypto Wallet project)
