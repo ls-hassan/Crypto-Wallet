@@ -1,0 +1,13 @@
+#ifndef CommonFunctionsH
+#define CommonFunctionsH
+
+#include <System.Classes.hpp>  // For String type
+
+// Declaration of the hashPassword function
+String hashPassword(const String &password);
+
+// No need to declare TForm2 class if you're not using it in this header
+// If you need to use TForm2 in another part of your code, you can include its header in that specific file.
+
+#endif
+

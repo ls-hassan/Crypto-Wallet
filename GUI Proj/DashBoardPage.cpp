@@ -1,0 +1,212 @@
+#include <vcl.h>
+#pragma resource "*.dfm"
+#pragma hdrstop
+#include <iomanip>
+#include <System.hpp>  // For TFileStream, TMemoryStream
+#include <unordered_map>
+#include "DashBoardPage.h"
+#include "LoginPage.h"
+
+#pragma package(smart_init)
+
+TDashBoardForm *DashBoardForm;
+
+__fastcall TDashBoardForm::TDashBoardForm(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+
+std::string GetWalletFilePath(const std::string& email)
+{
+	std::string baseDir = "D:\\Crypto Wallet\\GUI Proj\\Accounts\\";
+	return baseDir + email + "_wallet.txt";
+}
+
+std::unordered_map<std::string, double> ReadWallet(const std::string& walletFile)
+{
+    std::unordered_map<std::string, double> wallet;
+    TFileStream* walletFileIn = nullptr;
+
+    try
+	{
+        walletFileIn = new TFileStream(walletFile.c_str(), fmOpenRead);
+        if (walletFileIn->Size > 0)
+        {
+            AnsiString fileContent;
+			fileContent.SetLength(walletFileIn->Size);
+            walletFileIn->Read(fileContent.c_str(), fileContent.Length());
+
+            TStringList* lines = new TStringList();
+            lines->Text = fileContent;
+
+            for (int i = 0; i < lines->Count; ++i)
+            {
+                AnsiString line = lines->Strings[i].Trim();
+                if (line.IsEmpty()) continue;
+
+                int spacePos = line.Pos(" ");
+                if (spacePos > 0)
+                {
+                    std::string coin = line.SubString(1, spacePos - 1).Trim().UpperCase().c_str();
+                    double balance = StrToFloatDef(line.SubString(spacePos + 1, line.Length() - spacePos).Trim().c_str(), 0);
+
+					if (balance > 0)
+                    {
+                        wallet[coin] = balance;
+                    }
+                }
+            }
+            delete lines;
+        }
+    }
+    catch (...)
+    {
+        if (walletFileIn) delete walletFileIn;
+        ShowMessage("Error reading wallet file.");
+    }
+
+	if (walletFileIn) delete walletFileIn;
+    return wallet;
+}
+
+void WriteWallet(const std::string& walletFile, const std::unordered_map<std::string, double>& wallet)
+{
+    TFileStream* walletFileOut = nullptr;
+
+    try
+    {
+        walletFileOut = new TFileStream(walletFile.c_str(), fmCreate);
+        AnsiString updatedContent;
+        for (const auto& entry : wallet)
+        {
+            updatedContent += AnsiString(entry.first.c_str()) + " " +
+                              FloatToStrF(entry.second, ffFixed, 15, 2) + "\r\n";
+        }
+
+        walletFileOut->Write(updatedContent.c_str(), updatedContent.Length());
+    }
+    catch (...)
+    {
+        if (walletFileOut) delete walletFileOut;
+        ShowMessage("Error writing to wallet file.");
+    }
+
+    if (walletFileOut) delete walletFileOut;
+}
+
+void __fastcall TDashBoardForm::FormCreate(TObject *Sender)
+{
+    cmbCoinType->Items->Clear();  // Optional, to clear any previous items
+    cmbCoinType->Items->Add("BTC");
+    cmbCoinType->Items->Add("ETH");
+    cmbCoinType->Items->Add("SOL");
+    cmbCoinType->Items->Add("USDT");
+}
+
+void __fastcall TDashBoardForm::cmbCoinTypeChange(TObject *Sender)
+{
+    String selectedCoin = cmbCoinType->Text;
+}
+
+void __fastcall TDashBoardForm::btnWithDrawClick(TObject *Sender)
+{
+    String selectedCoin = cmbCoinType->Text.Trim();
+    double withdrawalAmount = StrToFloatDef(edtAmount->Text, 0);
+
+    if (withdrawalAmount <= 0)
+    {
+        ShowMessage("Please enter a valid amount to withdraw.");
+        return;
+    }
+
+    std::string walletFile = GetWalletFilePath(currentLoggedInEmail.c_str());
+    auto wallet = ReadWallet(walletFile);
+
+    std::string selectedCoinStr = AnsiString(selectedCoin).Trim().UpperCase().c_str();
+
+    if (wallet.find(selectedCoinStr) == wallet.end())
+    {
+        ShowMessage("This coin is not found in your wallet.");
+        return;
+    }
+
+    double currentBalance = wallet[selectedCoinStr];
+    if (currentBalance < withdrawalAmount)
+    {
+        ShowMessage("Insufficient balance for withdrawal!");
+        return;
+    }
+
+    wallet[selectedCoinStr] -= withdrawalAmount;
+    WriteWallet(walletFile, wallet);
+
+    ShowMessage("Withdrawal successful!");
+}
+
+void __fastcall TDashBoardForm::btnDepositClick(TObject *Sender)
+{
+    String selectedCoin = cmbCoinType->Text.Trim();
+    double depositAmount = StrToFloatDef(edtAmount->Text, 0);
+
+    if (depositAmount <= 0)
+    {
+        ShowMessage("Please enter a valid amount to deposit.");
+        return;
+    }
+
+    std::string walletFile = GetWalletFilePath(currentLoggedInEmail.c_str());
+    auto wallet = ReadWallet(walletFile);
+
+    std::string selectedCoinStr = AnsiString(selectedCoin).Trim().UpperCase().c_str();
+
+    if (wallet.find(selectedCoinStr) != wallet.end())
+    {
+        wallet[selectedCoinStr] += depositAmount;
+    }
+    else
+    {
+        wallet[selectedCoinStr] = depositAmount;
+    }
+
+    WriteWallet(walletFile, wallet);
+
+    ShowMessage("Deposit successful!");
+}
+
+void __fastcall TDashBoardForm::btnCheckBalanceClick(TObject *Sender)
+{
+    String selectedCoin = cmbCoinType->Text.Trim();
+    if (selectedCoin.IsEmpty())
+    {
+        ShowMessage("Please select a coin to check its balance.");
+        return;
+    }
+
+    std::string walletFile = GetWalletFilePath(currentLoggedInEmail.c_str());
+    auto wallet = ReadWallet(walletFile);
+
+    std::string selectedCoinStr = AnsiString(selectedCoin).Trim().UpperCase().c_str();
+
+    if (wallet.find(selectedCoinStr) != wallet.end())
+    {
+        double balance = wallet[selectedCoinStr];
+        ShowMessage("Your balance for " + selectedCoin + " is: " +
+                    FloatToStrF(balance, ffFixed, 15, 2));
+    }
+    else
+    {
+        ShowMessage("This coin is not found in your wallet.");
+    }
+}
+
+void __fastcall TDashBoardForm::btnLogoutClick(TObject *Sender)
+{
+    int response = MessageDlg("Are you sure you want to log out?", mtConfirmation, TMsgDlgButtons() << mbYes << mbNo, 0);
+
+    if (response == mrYes)
+    {
+        currentLoggedInEmail = "";
+        this->Hide();
+        LoginForm->Show();
+    }
+}

@@ -1,0 +1,26 @@
+//---------------------------------------------------------------------------
+
+#include "CommonFunctions.h"  // Include the header file
+
+// Define the constructor of TForm2
+__fastcall TForm2::TForm2(TComponent* Owner)
+    : TForm(Owner)
+{
+    // Optional: Initialization code here
+}
+
+
+
+// Hash function for password
+String hashPassword(const String &password)
+{
+    unsigned long hash = 5381;
+    for (int i = 1; i <= password.Length(); ++i)
+    {
+		hash = ((hash << 5) + hash) + password[i];
+    }
+    return IntToStr(static_cast<int>(hash));
+}
+
+
+//---------------------------------------------------------------------------

@@ -1,0 +1,334 @@
+#include <vcl.h>
+#pragma resource "*.dfm"
+#pragma hdrstop
+#include <iomanip>
+#include <System.hpp>  // For TFileStream, TMemoryStream
+
+#include "DashBoardPage.h"
+#include "LoginPage.h"
+
+#pragma package(smart_init)
+
+
+
+TDashBoardForm *DashBoardForm;
+
+__fastcall TDashBoardForm::TDashBoardForm(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+
+std::string GetWalletFilePath(const std::string& email)
+{
+	std::string baseDir = "D:\\Crypto Wallet\\CLI Proj\\";
+	return baseDir + email + "_wallet.txt";
+}
+
+void __fastcall TDashBoardForm::FormCreate(TObject *Sender)
+{
+
+	cmbCoinType->Items->Clear();  // Optional, to clear any previous items
+	cmbCoinType->Items->Add("BTC");
+	cmbCoinType->Items->Add("ETH");
+	cmbCoinType->Items->Add("SOL");
+	cmbCoinType->Items->Add("USDT");
+}
+
+void __fastcall TDashBoardForm::cmbCoinTypeChange(TObject *Sender)
+{
+	String selectedCoin = cmbCoinType->Text;
+}
+
+void __fastcall TDashBoardForm::btnWithDrawClick(TObject *Sender)
+{
+
+ // Get the selected coin and withdrawal amount
+	String selectedCoin = cmbCoinType->Text.Trim();  // Trim whitespace
+	double withdrawalAmount = StrToFloatDef(edtAmount->Text, 0);
+
+	if (withdrawalAmount <= 0)
+	{
+		ShowMessage("Please enter a valid amount to withdraw.");
+		return;
+	}
+
+	AnsiString walletFile = "D:\\Crypto Wallet\\CLI Proj\\" + currentLoggedInEmail + "_wallet.txt";
+	std::unordered_map<std::string, double> wallet;
+
+	// Read wallet file
+	TFileStream* walletFileIn = nullptr;
+	try
+	{
+		walletFileIn = new TFileStream(walletFile, fmOpenRead);
+		if (walletFileIn->Size == 0)
+		{
+			ShowMessage("Wallet file is empty or unreadable.");
+			delete walletFileIn;
+			return;
+		}
+
+		AnsiString fileContent;
+		fileContent.SetLength(walletFileIn->Size);
+		walletFileIn->Read(fileContent.c_str(), fileContent.Length());
+		delete walletFileIn;
+
+		TStringList* lines = new TStringList();
+		lines->Text = fileContent;
+
+		for (int i = 0; i < lines->Count; ++i)
+		{
+			AnsiString line = lines->Strings[i].Trim();
+			if (line.IsEmpty()) continue;
+
+			int spacePos = line.Pos(" ");
+			if (spacePos > 0)
+			{
+				std::string coin = line.SubString(1, spacePos - 1).Trim().UpperCase().c_str();
+				double balance = StrToFloatDef(line.SubString(spacePos + 1, line.Length() - spacePos).Trim().c_str(), 0);
+
+				if (balance > 0)
+				{
+					wallet[coin] = balance;
+				}
+			}
+		}
+		delete lines;
+	}
+	catch (...)
+	{
+		if (walletFileIn) delete walletFileIn;
+		ShowMessage("Error reading wallet file.");
+		return;
+	}
+
+	// Convert selectedCoin to std::string
+	std::string selectedCoinStr = AnsiString(selectedCoin).Trim().UpperCase().c_str();
+
+	if (wallet.find(selectedCoinStr) == wallet.end())
+	{
+		ShowMessage("This coin is not found in your wallet.");
+		return;
+	}
+
+	double currentBalance = wallet[selectedCoinStr];
+	if (currentBalance < withdrawalAmount)
+	{
+		ShowMessage("Insufficient balance for withdrawal!");
+		return;
+	}
+
+	// Update wallet balance
+	wallet[selectedCoinStr] -= withdrawalAmount;
+
+	// Save updated wallet
+	TFileStream* walletFileOut = nullptr;
+	try
+	{
+		walletFileOut = new TFileStream(walletFile, fmCreate);
+		AnsiString updatedContent;
+		for (const auto& entry : wallet)
+		{
+			updatedContent += AnsiString(entry.first.c_str()) + " " +
+							  FloatToStrF(entry.second, ffFixed, 15, 2) + "\r\n";
+		}
+
+		walletFileOut->Write(updatedContent.c_str(), updatedContent.Length());
+		delete walletFileOut;
+	}
+	catch (...)
+	{
+		if (walletFileOut) delete walletFileOut;
+		ShowMessage("Error writing to wallet file.");
+		return;
+	}
+
+	ShowMessage("Withdrawal successful!");
+}
+
+void __fastcall TDashBoardForm::btnDepositClick(TObject *Sender)
+{
+    // Get the selected coin and deposit amount
+	String selectedCoin = cmbCoinType->Text.Trim();  // Trim whitespace
+	double depositAmount = StrToFloatDef(edtAmount->Text, 0);
+
+	if (depositAmount <= 0)
+	{
+		ShowMessage("Please enter a valid amount to deposit.");
+		return;
+	}
+
+	AnsiString walletFile = "D:\\Crypto Wallet\\CLI Proj\\" + currentLoggedInEmail + "_wallet.txt";
+	std::unordered_map<std::string, double> wallet;
+
+	// Read wallet file
+	TFileStream* walletFileIn = nullptr;
+	try
+	{
+		walletFileIn = new TFileStream(walletFile, fmOpenRead);
+		if (walletFileIn->Size > 0)
+		{
+			AnsiString fileContent;
+			fileContent.SetLength(walletFileIn->Size);
+			walletFileIn->Read(fileContent.c_str(), fileContent.Length());
+
+			TStringList* lines = new TStringList();
+			lines->Text = fileContent;
+
+			for (int i = 0; i < lines->Count; ++i)
+			{
+				AnsiString line = lines->Strings[i].Trim();
+				if (line.IsEmpty()) continue;
+
+				int spacePos = line.Pos(" ");
+				if (spacePos > 0)
+				{
+					std::string coin = line.SubString(1, spacePos - 1).Trim().UpperCase().c_str();
+					double balance = StrToFloatDef(line.SubString(spacePos + 1, line.Length() - spacePos).Trim().c_str(), 0);
+
+					if (balance > 0)
+					{
+						wallet[coin] = balance;
+					}
+				}
+			}
+			delete lines;
+		}
+		delete walletFileIn;
+	}
+	catch (...)
+	{
+		if (walletFileIn) delete walletFileIn;
+		ShowMessage("Error reading wallet file.");
+		return;
+	}
+
+	// Convert selectedCoin to std::string
+	std::string selectedCoinStr = AnsiString(selectedCoin).Trim().UpperCase().c_str();
+
+	// Update wallet balance or add new coin
+	if (wallet.find(selectedCoinStr) != wallet.end())
+	{
+		wallet[selectedCoinStr] += depositAmount;  // Add deposit to existing balance
+	}
+	else
+	{
+		wallet[selectedCoinStr] = depositAmount;  // Create new coin entry
+	}
+
+	// Save updated wallet
+	TFileStream* walletFileOut = nullptr;
+	try
+	{
+		walletFileOut = new TFileStream(walletFile, fmCreate);
+		AnsiString updatedContent;
+		for (const auto& entry : wallet)
+		{
+			updatedContent += AnsiString(entry.first.c_str()) + " " +
+							  FloatToStrF(entry.second, ffFixed, 15, 2) + "\r\n";
+		}
+
+		walletFileOut->Write(updatedContent.c_str(), updatedContent.Length());
+		delete walletFileOut;
+	}
+	catch (...)
+	{
+		if (walletFileOut) delete walletFileOut;
+		ShowMessage("Error writing to wallet file.");
+		return;
+	}
+
+	ShowMessage("Deposit successful!");
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TDashBoardForm::btnCheckBalanceClick(TObject *Sender)
+{
+    // Get the selected coin
+	String selectedCoin = cmbCoinType->Text.Trim();  // Trim whitespace
+	if (selectedCoin.IsEmpty())
+	{
+		ShowMessage("Please select a coin to check its balance.");
+		return;
+	}
+
+	AnsiString walletFile = "D:\\Crypto Wallet\\CLI Proj\\" + currentLoggedInEmail + "_wallet.txt";
+	std::unordered_map<std::string, double> wallet;
+
+	// Read wallet file
+	TFileStream* walletFileIn = nullptr;
+	try
+	{
+		walletFileIn = new TFileStream(walletFile, fmOpenRead);
+		if (walletFileIn->Size > 0)
+		{
+			AnsiString fileContent;
+			fileContent.SetLength(walletFileIn->Size);
+			walletFileIn->Read(fileContent.c_str(), fileContent.Length());
+
+			TStringList* lines = new TStringList();
+			lines->Text = fileContent;
+
+			for (int i = 0; i < lines->Count; ++i)
+			{
+				AnsiString line = lines->Strings[i].Trim();
+				if (line.IsEmpty()) continue;
+
+				int spacePos = line.Pos(" ");
+				if (spacePos > 0)
+				{
+					std::string coin = line.SubString(1, spacePos - 1).Trim().UpperCase().c_str();
+					double balance = StrToFloatDef(line.SubString(spacePos + 1, line.Length() - spacePos).Trim().c_str(), 0);
+
+					if (balance > 0)
+					{
+						wallet[coin] = balance;
+					}
+				}
+			}
+			delete lines;
+		}
+		delete walletFileIn;
+	}
+	catch (...)
+	{
+		if (walletFileIn) delete walletFileIn;
+		ShowMessage("Error reading wallet file.");
+		return;
+	}
+
+	// Convert selectedCoin to std::string
+	std::string selectedCoinStr = AnsiString(selectedCoin).Trim().UpperCase().c_str();
+
+	// Check if the selected coin exists in the wallet
+	if (wallet.find(selectedCoinStr) != wallet.end())
+	{
+		double balance = wallet[selectedCoinStr];
+		ShowMessage("Your balance for " + selectedCoin + " is: " +
+					FloatToStrF(balance, ffFixed, 15, 2));
+	}
+	else
+	{
+		ShowMessage("This coin is not found in your wallet.");
+	}
+
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TDashBoardForm::btnLogoutClick(TObject *Sender)
+{
+// Confirm logout action
+	int response = MessageDlg("Are you sure you want to log out?", mtConfirmation, TMsgDlgButtons() << mbYes << mbNo, 0);
+
+	if (response == mrYes) // If user clicks 'Yes'
+	{
+		// Reset the current logged-in email
+		currentLoggedInEmail = "";
+
+		// Hide the Dashboard form and show the Login form
+		this->Hide();
+		LoginForm->Show();
+	}
+}
+//---------------------------------------------------------------------------
+
+
