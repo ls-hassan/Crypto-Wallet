@@ -1,0 +1,18 @@
+Install the latest version of RAD Studio.
+
+Enable file name extensions on your computer:
+
+Open File Explorer.
+Click on View → Show → Check File Name Extensions.
+Extract the entire Crypto Wallet folder to your D drive.
+
+Navigate to the project directory:
+
+Open D: → Crypto Wallet → GUI Proj.
+Open the project in RAD Studio:
+
+Double-click Crypto-Wallet.cbproj to launch the project.
+To run the pre-built executable without compiling:
+
+Go to: D:\Crypto Wallet\GUI Proj\Win64x\Debug.
+Double-click Crypto-Wallet.exe to start the application.
